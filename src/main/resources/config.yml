@@ -1,0 +1,53 @@
+settings:
+
+# Максимальное количество хаосов
+
+max-chaos: 25
+
+# Количество хаосов за убийство
+
+chaos-per-kill: 1
+
+# Задержка повторного получения награды за убийство одного игрока
+
+kill-cooldown: 300
+
+# Автоматическое сохранение данных
+
+auto-save: true
+
+# Интервал сохранения в секундах
+
+save-interval: 60
+
+# Максимальный уровень силы
+
+max-power-level: 5
+
+# Требуемое количество хаосов для каждого уровня силы
+
+power-levels:
+1: 5
+2: 10
+3: 15
+4: 20
+5: 25
+
+messages:
+prefix: "<dark_gray>[[gradient:#5B8CFF:#C084FC](gradient:#5B8CFF:#C084FC)ChaosSMP</gradient>]</dark_gray> "
+
+no-permission: "<red>У тебя недостаточно прав!"
+player-only: "<red>Эту команду может использовать только игрок."
+player-not-found: "<red>Игрок не найден."
+invalid-player: "<red>Укажи ник игрока."
+invalid-amount: "<red>Укажи правильное неотрицательное число."
+reloaded: "<green>Конфигурация перезагружена."
+
+check: "<gray>Игрок: <aqua>{player}<newline><gray>Хаосы: <light_purple>{chaos}/{max}<newline><gray>Уровень силы: <gold>{power}"
+
+given: "<green>Игроку <white>{player} <green>добавлено хаосов: <aqua>{amount}"
+taken: "<yellow>У игрока <white>{player} <yellow>забрано хаосов: <aqua>{amount}"
+set: "<green>Количество хаосов игрока <white>{player} <green>установлено: <aqua>{amount}"
+
+kill-reward: "<green>+{amount} хаоса за убийство!"
+level-up: "<light_purple>Твой уровень силы повышен до <gold>{level}!"
