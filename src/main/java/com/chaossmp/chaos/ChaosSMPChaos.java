@@ -11,6 +11,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 
 import java.io.File;
@@ -73,15 +74,17 @@ public void onDisable() {
 }
 
 private void loadPlayerData() {
-    if (!getDataFolder().exists()) {
-        getDataFolder().mkdirs();
+    if (!getDataFolder().exists() && !getDataFolder().mkdirs()) {
+        getLogger().severe("Не удалось создать папку плагина!");
     }
 
     playersFile = new File(getDataFolder(), "players.yml");
 
     if (!playersFile.exists()) {
         try {
-            playersFile.createNewFile();
+            if (!playersFile.createNewFile()) {
+                getLogger().warning("Не удалось создать players.yml!");
+            }
         } catch (IOException exception) {
             getLogger().severe("Не удалось создать players.yml!");
             exception.printStackTrace();
@@ -90,10 +93,14 @@ private void loadPlayerData() {
 
     playersData = YamlConfiguration.loadConfiguration(playersFile);
 
-    getLogger().info(
-            "Загружена статистика игроков: "
-                    + playersData.getConfigurationSection("players") == null
-    );
+    ConfigurationSection section =
+            playersData.getConfigurationSection("players");
+
+    int playerCount = section == null
+            ? 0
+            : section.getKeys(false).size();
+
+    getLogger().info("Загружена статистика игроков: " + playerCount);
 }
 
 private void savePlayerData() {
@@ -131,6 +138,7 @@ private int getMaxChaos() {
 
 private int getPowerLevel(UUID uuid) {
     int chaos = getChaos(uuid);
+
     int maxLevel = Math.max(
             1,
             getConfig().getInt("settings.max-power-level", 5)
@@ -168,6 +176,7 @@ private void removeChaos(UUID uuid, int amount) {
 
 private void send(CommandSender sender, String path) {
     String prefix = getConfig().getString("messages.prefix", "");
+
     String message = getConfig().getString(
             path,
             "<red>Сообщение не найдено."
@@ -188,6 +197,7 @@ private void sendFormatted(
         Map<String, String> placeholders
 ) {
     String prefix = getConfig().getString("messages.prefix", "");
+
     String message = getConfig().getString(
             messagePath,
             "<red>Сообщение не найдено."
@@ -226,9 +236,12 @@ private void showStats(CommandSender sender, String name) {
         return;
     }
 
-    String playerName = offline.getName() == null
-            ? name
-            : offline.getName();
+    String playerName = online != null
+            ? online.getName()
+            : playersData.getString(
+                    path(uuid, "name"),
+                    offline.getName() == null ? name : offline.getName()
+            );
 
     sendFormatted(sender, "messages.check", Map.of(
             "player", playerName,
@@ -245,7 +258,8 @@ private void showStats(CommandSender sender, String name) {
 }
 
 private void showTop(CommandSender sender) {
-    var section = playersData.getConfigurationSection("players");
+    ConfigurationSection section =
+            playersData.getConfigurationSection("players");
 
     sendRaw(
             sender,
@@ -256,6 +270,8 @@ private void showTop(CommandSender sender) {
         sendRaw(sender, "<gray>Пока нет данных.");
         return;
     }
+
+    int[] rank = {0};
 
     section.getKeys(false).stream()
             .sorted(Comparator.comparingInt(
@@ -273,16 +289,21 @@ private void showTop(CommandSender sender) {
                     return;
                 }
 
+                rank[0]++;
+
                 OfflinePlayer player = Bukkit.getOfflinePlayer(uuid);
 
-                String playerName = player.getName() == null
-                        ? id.substring(0, 8)
-                        : player.getName();
+                String playerName = playersData.getString(
+                        "players." + id + ".name",
+                        player.getName() == null
+                                ? id.substring(0, 8)
+                                : player.getName()
+                );
 
                 sendRaw(
                         sender,
-                        "<gray>" + (playersData.getKeys(true).size() > 0 ? "" : "")
-                                + "<white>" + playerName
+                        "<gray>#" + rank[0]
+                                + " <white>" + playerName
                                 + " <dark_gray>— <aqua>"
                                 + getChaos(uuid)
                                 + " <gray>хаосов"
@@ -297,6 +318,7 @@ private void executeAdminAction(
         int amount
 ) {
     UUID uuid = target.getUniqueId();
+
     int oldLevel = getPowerLevel(uuid);
 
     switch (action) {
@@ -464,6 +486,7 @@ public void onPlayerDeath(PlayerDeathEvent event) {
     );
 
     if (killer == null || killer.getUniqueId().equals(victimId)) {
+        savePlayerData();
         return;
     }
 
@@ -479,14 +502,15 @@ public void onPlayerDeath(PlayerDeathEvent event) {
 
     String cooldownKey = killerId + ":" + victimId;
 
-    long cooldown = getConfig().getLong(
-            "settings.kill-cooldown",
-            300
+    long cooldown = Math.max(
+            0L,
+            getConfig().getLong("settings.kill-cooldown", 300)
     );
 
     long lastKill = killCooldowns.getOrDefault(cooldownKey, 0L);
 
     if (now - lastKill < TimeUnit.SECONDS.toMillis(cooldown)) {
+        savePlayerData();
         return;
     }
 
@@ -518,5 +542,7 @@ public void onPlayerDeath(PlayerDeathEvent event) {
                 "level", String.valueOf(newLevel)
         ));
     }
+
+    savePlayerData();
 }
 }
