@@ -26,16 +26,19 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '21'
-          cache: gradle
 
       - name: 🐘 Setup Gradle
         uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
 
-      - name: 🔍 Check Java Version
-        run: java -version
+      - name: 🔍 Check Environment
+        run: |
+          java -version
+          gradle -v
 
       - name: 🏗️ Build ChaosSMPChaos
-        run: ./gradlew clean build --no-daemon
+        run: gradle clean build --no-daemon
 
       - name: 📦 Upload Plugin JAR
         uses: actions/upload-artifact@v4
