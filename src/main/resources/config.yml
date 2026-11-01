@@ -8,15 +8,15 @@ max-chaos: 25
 
 chaos-per-kill: 1
 
-# Задержка повторного получения награды за убийство одного игрока
+# Задержка повторного получения хаосов за убийство одного игрока (секунды)
 
 kill-cooldown: 300
 
-# Автоматическое сохранение данных
+# Автоматическое сохранение статистики
 
 auto-save: true
 
-# Интервал сохранения в секундах
+# Интервал сохранения (секунды)
 
 save-interval: 60
 
@@ -24,7 +24,7 @@ save-interval: 60
 
 max-power-level: 5
 
-# Требуемое количество хаосов для каждого уровня силы
+# Количество хаосов для каждого уровня
 
 power-levels:
 1: 5
@@ -41,9 +41,10 @@ player-only: "<red>Эту команду может использовать т�
 player-not-found: "<red>Игрок не найден."
 invalid-player: "<red>Укажи ник игрока."
 invalid-amount: "<red>Укажи правильное неотрицательное число."
+
 reloaded: "<green>Конфигурация перезагружена."
 
-check: "<gray>Игрок: <aqua>{player}<newline><gray>Хаосы: <light_purple>{chaos}/{max}<newline><gray>Уровень силы: <gold>{power}"
+check: "<newline>[gradient:#5B8CFF:#C084FC](gradient:#5B8CFF:#C084FC)<bold>CHAOSSMP</bold></gradient><newline><gray>Игрок: <aqua>{player}<newline><gray>Хаосы: <light_purple>{chaos}/{max}<newline><gray>Уровень силы: <gold>{power}"
 
 given: "<green>Игроку <white>{player} <green>добавлено хаосов: <aqua>{amount}"
 taken: "<yellow>У игрока <white>{player} <yellow>забрано хаосов: <aqua>{amount}"
