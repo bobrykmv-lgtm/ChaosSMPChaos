@@ -1,5 +1,6 @@
 package com.chaossmp.chaos;
 
+import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
@@ -7,6 +8,10 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.Listener;
+import org.bukkit.event.entity.PlayerDeathEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
@@ -14,7 +19,7 @@ import java.io.IOException;
 import java.util.Comparator;
 import java.util.UUID;
 
-public final class ChaosSMPChaos extends JavaPlugin {
+public final class ChaosSMPChaos extends JavaPlugin implements Listener {
 
 private static final MiniMessage MINI = MiniMessage.miniMessage();
 
@@ -24,7 +29,15 @@ private YamlConfiguration playersData;
 @Override
 public void onEnable() {
     saveDefaultConfig();
-    loadPlayerData();
+
+    if (!getDataFolder().exists() && !getDataFolder().mkdirs()) {
+        getLogger().severe("Не удалось создать папку плагина!");
+        getServer().getPluginManager().disablePlugin(this);
+        return;
+    }
+
+    playersFile = new File(getDataFolder(), "players.yml");
+    playersData = YamlConfiguration.loadConfiguration(playersFile);
 
     if (getCommand("chaos") == null) {
         getLogger().severe("Команда /chaos не найдена в plugin.yml!");
@@ -33,6 +46,13 @@ public void onEnable() {
     }
 
     getCommand("chaos").setExecutor(this);
+    Bukkit.getPluginManager().registerEvents(this, this);
+
+    for (Player player : Bukkit.getOnlinePlayers()) {
+        updatePlayerName(player);
+    }
+
+    savePlayerData();
     getLogger().info("ChaosSMPChaos успешно запущен!");
 }
 
@@ -41,15 +61,41 @@ public void onDisable() {
     savePlayerData();
 }
 
-private void loadPlayerData() {
-    if (!getDataFolder().exists() && !getDataFolder().mkdirs()) {
-        getLogger().severe("Не удалось создать папку плагина!");
+private String path(UUID uuid) {
+    return "players." + uuid;
+}
+
+private int getChaos(UUID uuid) {
+    return Math.max(0, playersData.getInt(path(uuid) + ".chaos", 0));
+}
+
+private int getMaxChaos() {
+    return Math.max(0, getConfig().getInt("settings.max-chaos", 25));
+}
+
+private int getKillReward() {
+    return Math.max(0, getConfig().getInt("settings.kill-reward", 1));
+}
+
+private int getDeathPenalty() {
+    return Math.max(0, getConfig().getInt("settings.death-penalty", 1));
+}
+
+private void setChaos(UUID uuid, String name, long amount) {
+    int safeAmount = (int) Math.max(0, Math.min(amount, getMaxChaos()));
+
+    playersData.set(path(uuid) + ".name", name);
+    playersData.set(path(uuid) + ".chaos", safeAmount);
+}
+
+private void updatePlayerName(Player player) {
+    UUID uuid = player.getUniqueId();
+
+    playersData.set(path(uuid) + ".name", player.getName());
+
+    if (!playersData.contains(path(uuid) + ".chaos")) {
+        playersData.set(path(uuid) + ".chaos", 0);
     }
-
-    playersFile = new File(getDataFolder(), "players.yml");
-    playersData = YamlConfiguration.loadConfiguration(playersFile);
-
-    getLogger().info("Статистика хаосов загружена.");
 }
 
 private void savePlayerData() {
@@ -63,25 +109,6 @@ private void savePlayerData() {
         getLogger().severe("Не удалось сохранить players.yml!");
         exception.printStackTrace();
     }
-}
-
-private String path(UUID uuid) {
-    return "players." + uuid;
-}
-
-private int getChaos(UUID uuid) {
-    return playersData.getInt(path(uuid) + ".chaos", 0);
-}
-
-private int getMaxChaos() {
-    return Math.max(1, getConfig().getInt("settings.max-chaos", 25));
-}
-
-private void setChaos(UUID uuid, String name, int amount) {
-    int safeAmount = Math.max(0, Math.min(amount, getMaxChaos()));
-
-    playersData.set(path(uuid) + ".name", name);
-    playersData.set(path(uuid) + ".chaos", safeAmount);
 }
 
 private void send(CommandSender sender, String messagePath) {
@@ -113,63 +140,161 @@ private void sendFormatted(
     sender.sendMessage(MINI.deserialize(prefix + message));
 }
 
-private boolean hasAdminPermission(CommandSender sender) {
-    if (!sender.hasPermission("chaossmpchaos.admin")) {
-        send(sender, "messages.no-permission");
-        return false;
+private String getName(String id) {
+    return playersData.getString(
+            "players." + id + ".name",
+            "Неизвестный игрок"
+    );
+}
+
+private int getRank(UUID target) {
+    ConfigurationSection section =
+            playersData.getConfigurationSection("players");
+
+    if (section == null) {
+        return 0;
     }
 
-    return true;
+    var entries = section.getKeys(false).stream()
+            .sorted(Comparator
+                    .comparingInt((String id) ->
+                            playersData.getInt("players." + id + ".chaos", 0))
+                    .reversed()
+                    .thenComparing(this::getName, String.CASE_INSENSITIVE_ORDER))
+            .toList();
+
+    int index = entries.indexOf(target.toString());
+
+    return index < 0 ? entries.size() + 1 : index + 1;
+}
+
+private void showStats(Player player) {
+    UUID uuid = player.getUniqueId();
+
+    int chaos = getChaos(uuid);
+    int rank = getRank(uuid);
+
+    String prefix = getConfig().getString("messages.prefix", "");
+
+    player.sendMessage(Component.empty());
+    player.sendMessage(MINI.deserialize(prefix +
+            getConfig().getString("messages.stats-title",
+                    "<bold>ТВОЯ СТАТИСТИКА</bold>")));
+    player.sendMessage(MINI.deserialize(prefix +
+            getConfig().getString("messages.stats-chaos",
+                    "<gray>Хаосы: {chaos}/{max}")
+                    .replace("{chaos}", String.valueOf(chaos))
+                    .replace("{max}", String.valueOf(getMaxChaos()))));
+    player.sendMessage(MINI.deserialize(prefix +
+            getConfig().getString("messages.stats-rank",
+                    "<gray>Место: #{rank}")
+                    .replace("{rank}", String.valueOf(rank))));
+    player.sendMessage(Component.empty());
 }
 
 private void showTop(CommandSender sender) {
     ConfigurationSection section =
             playersData.getConfigurationSection("players");
 
-    sender.sendMessage(MINI.deserialize(
-            "<gradient:#5B8CFF:#C084FC><bold>ТОП-10 CHAOSSMP</bold></gradient>"
-    ));
+    String prefix = getConfig().getString("messages.prefix", "");
+
+    sender.sendMessage(Component.empty());
+    sender.sendMessage(MINI.deserialize(prefix +
+            getConfig().getString("messages.top-title",
+                    "<bold>ТОП-10 CHAOSSMP</bold>")));
 
     if (section == null || section.getKeys(false).isEmpty()) {
-        sender.sendMessage(MINI.deserialize("<gray>Пока нет игроков в рейтинге."));
+        send(sender, "messages.top-empty");
         return;
     }
 
-    int[] rank = {0};
-
-    section.getKeys(false).stream()
-            .sorted(Comparator.comparingInt(
-                    (String id) -> playersData.getInt(
-                            "players." + id + ".chaos", 0
-                    )
-            ).reversed())
+    var entries = section.getKeys(false).stream()
+            .sorted(Comparator
+                    .comparingInt((String id) ->
+                            playersData.getInt("players." + id + ".chaos", 0))
+                    .reversed()
+                    .thenComparing(this::getName, String.CASE_INSENSITIVE_ORDER))
             .limit(10)
-            .forEach(id -> {
-                int chaos = playersData.getInt(
-                        "players." + id + ".chaos", 0
-                );
+            .toList();
 
-                String name = playersData.getString(
-                        "players." + id + ".name",
-                        "Неизвестный игрок"
-                );
+    int rank = 0;
 
-                rank[0]++;
+    for (String id : entries) {
+        rank++;
 
-                String color = switch (rank[0]) {
-                    case 1 -> "<gold>";
-                    case 2 -> "<gray>";
-                    case 3 -> "<#CD7F32>";
-                    default -> "<white>";
-                };
+        int chaos = playersData.getInt("players." + id + ".chaos", 0);
+        String name = getName(id);
 
-                sender.sendMessage(MINI.deserialize(
-                        color + "#" + rank[0]
-                                + " <white>" + name
-                                + " <dark_gray>— <light_purple>"
-                                + chaos + " хаосов"
-                ));
-            });
+        String color = switch (rank) {
+            case 1 -> "<gold>";
+            case 2 -> "<gray>";
+            case 3 -> "<#CD7F32>";
+            default -> "<white>";
+        };
+
+        Component line = MINI.deserialize(
+                prefix + color + "#" + rank + " "
+        ).append(Component.text(name))
+         .append(MINI.deserialize(
+                " <dark_gray>— <light_purple>" + chaos + " хаос"
+         ));
+
+        sender.sendMessage(line);
+    }
+
+    sender.sendMessage(Component.empty());
+}
+
+@EventHandler
+public void onPlayerJoin(PlayerJoinEvent event) {
+    updatePlayerName(event.getPlayer());
+    savePlayerData();
+}
+
+@EventHandler
+public void onPlayerDeath(PlayerDeathEvent event) {
+    Player victim = event.getEntity();
+    Player killer = victim.getKiller();
+
+    if (killer == null || killer.getUniqueId().equals(victim.getUniqueId())) {
+        return;
+    }
+
+    int penalty = getDeathPenalty();
+    int reward = getKillReward();
+
+    UUID victimId = victim.getUniqueId();
+    UUID killerId = killer.getUniqueId();
+
+    int victimBefore = getChaos(victimId);
+    setChaos(victimId, victim.getName(), victimBefore - penalty);
+
+    int removed = victimBefore - getChaos(victimId);
+
+    if (removed > 0) {
+        sendFormatted(
+                victim,
+                "messages.death-message",
+                killer.getName(),
+                removed
+        );
+    }
+
+    int killerBefore = getChaos(killerId);
+    setChaos(killerId, killer.getName(), (long) killerBefore + reward);
+
+    int added = getChaos(killerId) - killerBefore;
+
+    if (added > 0) {
+        sendFormatted(
+                killer,
+                "messages.kill-message",
+                victim.getName(),
+                added
+        );
+    }
+
+    savePlayerData();
 }
 
 @Override
@@ -179,87 +304,18 @@ public boolean onCommand(
         String label,
         String[] args
 ) {
+    if (!(sender instanceof Player player)) {
+        send(sender, "messages.player-only");
+        return true;
+    }
+
     if (args.length == 0) {
-        if (!(sender instanceof Player player)) {
-            send(sender, "messages.player-only");
-            return true;
-        }
-
-        int chaos = getChaos(player.getUniqueId());
-
-        sender.sendMessage(MINI.deserialize(
-                getConfig().getString("messages.prefix", "")
-                        + "<gray>Твои хаосы: <light_purple>"
-                        + chaos + "<gray>/<aqua>" + getMaxChaos()
-        ));
+        showStats(player);
         return true;
     }
 
-    if (args[0].equalsIgnoreCase("top")) {
+    if (args.length == 1 && args[0].equalsIgnoreCase("top")) {
         showTop(sender);
-        return true;
-    }
-
-    if (args[0].equalsIgnoreCase("give")
-            || args[0].equalsIgnoreCase("take")) {
-
-        if (!hasAdminPermission(sender)) {
-            return true;
-        }
-
-        if (args.length < 3) {
-            send(sender, "messages.usage");
-            return true;
-        }
-
-        Player target = Bukkit.getPlayerExact(args[1]);
-
-        if (target == null) {
-            send(sender, "messages.player-not-found");
-            return true;
-        }
-
-        int amount;
-
-        try {
-            amount = Integer.parseInt(args[2]);
-
-            if (amount <= 0) {
-                throw new NumberFormatException();
-            }
-        } catch (NumberFormatException exception) {
-            send(sender, "messages.invalid-amount");
-            return true;
-        }
-
-        UUID uuid = target.getUniqueId();
-        int before = getChaos(uuid);
-
-        if (args[0].equalsIgnoreCase("give")) {
-            setChaos(uuid, target.getName(), before + amount);
-
-            int added = getChaos(uuid) - before;
-
-            sendFormatted(
-                    sender,
-                    "messages.given",
-                    target.getName(),
-                    added
-            );
-        } else {
-            setChaos(uuid, target.getName(), before - amount);
-
-            int removed = before - getChaos(uuid);
-
-            sendFormatted(
-                    sender,
-                    "messages.taken",
-                    target.getName(),
-                    removed
-            );
-        }
-
-        savePlayerData();
         return true;
     }
 
