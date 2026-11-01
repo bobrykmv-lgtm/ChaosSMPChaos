@@ -6,6 +6,6 @@ author: ChaosSMP
 description: Система хаосов и рейтинга ChaosSMP
 
 commands:
-chaos:
-description: Статистика хаосов и рейтинг
-usage: /chaos [top]
+  chaos:
+    description: Статистика хаосов и рейтинг
+    usage: /chaos [top]
