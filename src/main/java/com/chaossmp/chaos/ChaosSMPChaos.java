@@ -6,13 +6,13 @@ import org.bukkit.OfflinePlayer;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.PluginCommand;
+import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.plugin.java.JavaPlugin;
-import org.bukkit.configuration.ConfigurationSection;
-import org.bukkit.configuration.file.YamlConfiguration;
 
 import java.io.File;
 import java.io.IOException;
@@ -174,11 +174,11 @@ private void removeChaos(UUID uuid, int amount) {
     setChaos(uuid, getChaos(uuid) - amount);
 }
 
-private void send(CommandSender sender, String path) {
+private void send(CommandSender sender, String messagePath) {
     String prefix = getConfig().getString("messages.prefix", "");
 
     String message = getConfig().getString(
-            path,
+            messagePath,
             "<red>Сообщение не найдено."
     );
 
