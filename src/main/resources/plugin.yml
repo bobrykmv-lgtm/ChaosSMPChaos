@@ -3,18 +3,19 @@ version: 1.0.0
 main: com.chaossmp.chaos.ChaosSMPChaos
 api-version: '1.21'
 author: Developer
-description: Плагін для керування системою хаосу на ChaosSMP.
+description: Плагин для управления системой хаоса на ChaosSMP.
 
 commands:
-  chaos:
-    description: Управление системой хаосов
-    usage: /<command>
-    permission: chaossmpchaos.use
-    
+chaos:
+description: Управление системой хаосов
+usage: /chaos
+permission: chaossmpchaos.use
+
 permissions:
-  chaossmpchaos.use:
-    description: Доступ к команде /chaos
-    default: true
-  chaossmpchaos.admin:
-    description: Административное управление хаосами
-    default: op
+chaossmpchaos.use:
+description: Доступ к командам просмотра хаосов
+default: true
+
+chaossmpchaos.admin:
+description: Административное управление хаосами
+default: op
