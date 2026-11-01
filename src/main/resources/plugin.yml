@@ -6,16 +6,15 @@ author: Developer
 description: Плагин для управления системой хаоса на ChaosSMP.
 
 commands:
-chaos:
-description: Управление системой хаосов
-usage: /chaos
-permission: chaossmpchaos.use
+  chaos:
+    description: Management system for chaos
+    usage: /<command>
+    permission: chaossmpchaos.use
 
 permissions:
-chaossmpchaos.use:
-description: Доступ к командам просмотра хаосов
-default: true
-
-chaossmpchaos.admin:
-description: Административное управление хаосами
-default: op
+  chaossmpchaos.use:
+    description: Доступ к командам просмотра хаосов
+    default: true
+  chaossmpchaos.admin:
+    description: Административное управление хаосами
+    default: op
