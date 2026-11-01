@@ -11,7 +11,7 @@ no-permission: "<red>У тебя недостаточно прав!"
 player-only: "<red>Эту команду может использовать только игрок."
 player-not-found: "<red>Игрок не найден."
 invalid-amount: "<red>Укажи правильное положительное число."
-usage: "<yellow>Использование: /chaos give <ник> <количество> или /chaos take <ник> <количество>"
+usage: "<yellow>Использование: /chaos give ник количество или /chaos take ник количество"
 
 given: "<green>Игроку <white>{player} <green>добавлено хаосов: <aqua>{amount}"
 taken: "<yellow>У игрока <white>{player} <yellow>забрано хаосов: <aqua>{amount}"
