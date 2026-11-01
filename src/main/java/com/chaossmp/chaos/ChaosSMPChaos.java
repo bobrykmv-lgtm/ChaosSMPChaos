@@ -249,12 +249,6 @@ private void showStats(CommandSender sender, String name) {
             "max", String.valueOf(getMaxChaos()),
             "power", String.valueOf(getPowerLevel(uuid))
     ));
-
-    sendRaw(
-            sender,
-            "<gray>Убийства: <green>" + getKills(uuid)
-                    + " <gray>| Смерти: <red>" + getDeaths(uuid)
-    );
 }
 
 private void showTop(CommandSender sender) {
@@ -545,4 +539,5 @@ public void onPlayerDeath(PlayerDeathEvent event) {
 
     savePlayerData();
 }
+
 }
