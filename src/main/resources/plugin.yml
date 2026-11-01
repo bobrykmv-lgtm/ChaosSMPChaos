@@ -2,15 +2,10 @@ name: ChaosSMPChaos
 version: 1.0.0
 main: com.chaossmp.chaos.ChaosSMPChaos
 api-version: '1.21'
-author: Developer
-description: Система управления хаосами на ChaosSMP
+author: ChaosSMP
+description: Система хаосов и рейтинга ChaosSMP
 
 commands:
 chaos:
-description: Управление хаосами
-usage: /chaos
-
-permissions:
-chaossmpchaos.admin:
-description: Выдача и снятие хаосов
-default: op
+description: Статистика хаосов и рейтинг
+usage: /chaos [top]
