@@ -1,17 +1,20 @@
 settings:
-
-# Максимальное количество хаосов у игрока
-
 max-chaos: 25
+kill-reward: 1
+death-penalty: 1
 
 messages:
 prefix: "<dark_gray>[[gradient:#5B8CFF:#C084FC](gradient:#5B8CFF:#C084FC)ChaosSMP</gradient>]</dark_gray> "
 
-no-permission: "<red>У тебя недостаточно прав!"
 player-only: "<red>Эту команду может использовать только игрок."
-player-not-found: "<red>Игрок не найден."
-invalid-amount: "<red>Укажи правильное положительное число."
-usage: "<yellow>Использование: /chaos give ник количество или /chaos take ник количество"
+usage: "<yellow>Использование: /chaos или /chaos top"
 
-given: "<green>Игроку <white>{player} <green>добавлено хаосов: <aqua>{amount}"
-taken: "<yellow>У игрока <white>{player} <yellow>забрано хаосов: <aqua>{amount}"
+stats-title: "[gradient:#5B8CFF:#C084FC](gradient:#5B8CFF:#C084FC)<bold>✦ ТВОЯ СТАТИСТИКА ✦</bold></gradient>"
+stats-chaos: "<gray>Хаосы: <light_purple><bold>{chaos}</bold></light_purple><gray>/<aqua>{max}"
+stats-rank: "<gray>Место в рейтинге: <gold>#{rank}"
+
+top-title: "[gradient:#5B8CFF:#C084FC](gradient:#5B8CFF:#C084FC)<bold>✦ ТОП-10 CHAOSSMP ✦</bold></gradient>"
+top-empty: "<gray>Рейтинг пока пуст."
+
+kill-message: "<green>+{amount} хаос за убийство <white>{player}<green>!"
+death-message: "<red>-{amount} хаос за смерть от игрока <white>{player}<red>!"
