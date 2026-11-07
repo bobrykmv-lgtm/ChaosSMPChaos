@@ -97,16 +97,14 @@ public final class ChaosSMPChaos extends JavaPlugin implements Listener, Command
     // --- Система видачі ефекту сили на основі хаосу ---
     private void applyChaosBuff(Player player) {
         int chaos = getChaos(player.getUniqueId());
-        int strengthLevel = chaos / 5; // Кожні 5 хаосів = +1 рівень сили (5 -> сила 1, 25 -> сила 5)
+        int strengthLevel = chaos / 5; // Кожні 5 хаосів = +1 рівень сили
 
-        // Видаляємо попередній ефект сили, щоб коректно оновити рівень
         player.removePotionEffect(PotionEffectType.STRENGTH);
 
         if (strengthLevel > 0) {
-            // Рівень вказується з 0 (0 = сила 1), тому strengthLevel - 1
             int amplifier = strengthLevel - 1;
-            // Видаємо вічний ефект (величезна тривалість в тіках: 999999 секунд), невидимість іконок за бажанням (false)
-            player.addPotionEffect(new PotionEffect(PotionEffectType.STRENGTH, PotionEffectType.STRENGTH.getDefaultAttributeModifiers() != null ? Integer.MAX_VALUE : 20 * 60 * 60, amplifier, true, false, true));
+            // Використовуємо стабільну велику тривалість (наприклад, ~24 години у тиках) з безперервним оновленням
+            player.addPotionEffect(new PotionEffect(PotionEffectType.STRENGTH, 20 * 60 * 60 * 24, amplifier, true, false, true));
         }
     }
 
@@ -203,7 +201,6 @@ public final class ChaosSMPChaos extends JavaPlugin implements Listener, Command
                 getConfig().getString("messages.stats-title",
                         "<bold>ТВОЯ СТАТИСТИКА</bold>")));
         
-        // Змінено рядок виведення хаосу (без максимального значення, оскільки ліміту більше немає)
         player.sendMessage(MINI.deserialize(prefix +
                 "<gray>Хаос: <light_purple>" + chaos));
                 
@@ -285,7 +282,6 @@ public final class ChaosSMPChaos extends JavaPlugin implements Listener, Command
         UUID victimId = victim.getUniqueId();
         int victimBefore = getChaos(victimId);
         
-        // Віднімаємо хаос за смерть (не опускаючись нижче 0)
         setChaos(victimId, victim.getName(), Math.max(0, victimBefore - penalty));
 
         int removed = victimBefore - getChaos(victimId);
@@ -299,7 +295,6 @@ public final class ChaosSMPChaos extends JavaPlugin implements Listener, Command
             );
         }
 
-        // Якщо вбивця є і це не самогубство — нараховуємо хаос
         if (killer != null && !killer.getUniqueId().equals(victim.getUniqueId())) {
             UUID killerId = killer.getUniqueId();
             int killerBefore = getChaos(killerId);
