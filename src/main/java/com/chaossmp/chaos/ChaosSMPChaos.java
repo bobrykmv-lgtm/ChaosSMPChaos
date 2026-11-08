@@ -3,7 +3,6 @@ package com.chaossmp.chaos;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import org.bukkit.Bukkit;
-import org.bukkit.ChatColor;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -87,6 +86,7 @@ public final class ChaosSMPChaos extends JavaPlugin implements Listener, Command
 
         playersData.set(path(uuid) + ".name", name);
         playersData.set(path(uuid) + ".chaos", safeAmount);
+        savePlayerData();
 
         Player player = Bukkit.getPlayer(uuid);
         if (player != null && player.isOnline()) {
@@ -94,23 +94,20 @@ public final class ChaosSMPChaos extends JavaPlugin implements Listener, Command
         }
     }
 
-    // --- Система видачі ефекту сили на основі хаосу ---
     private void applyChaosBuff(Player player) {
         int chaos = getChaos(player.getUniqueId());
-        int strengthLevel = chaos / 5; // Кожні 5 хаосів = +1 рівень сили
+        int strengthLevel = chaos / 5;
 
         player.removePotionEffect(PotionEffectType.STRENGTH);
 
         if (strengthLevel > 0) {
             int amplifier = strengthLevel - 1;
-            // Використовуємо стабільну велику тривалість (наприклад, ~24 години у тиках) з безперервним оновленням
             player.addPotionEffect(new PotionEffect(PotionEffectType.STRENGTH, 20 * 60 * 60 * 24, amplifier, true, false, true));
         }
     }
 
     private void updatePlayerName(Player player) {
         UUID uuid = player.getUniqueId();
-
         playersData.set(path(uuid) + ".name", player.getName());
 
         if (!playersData.contains(path(uuid) + ".chaos")) {
@@ -255,8 +252,8 @@ public final class ChaosSMPChaos extends JavaPlugin implements Listener, Command
                     prefix + color + "#" + rank + " "
             ).append(Component.text(name))
              .append(MINI.deserialize(
-                    " <dark_gray>— <light_purple>" + chaos + " хаос"
-             ));
+                     " <dark_gray>— <light_purple>" + chaos + " хаос"
+              ));
 
             sender.sendMessage(line);
         }
@@ -323,18 +320,113 @@ public final class ChaosSMPChaos extends JavaPlugin implements Listener, Command
             String label,
             String[] args
     ) {
-        if (!(sender instanceof Player player)) {
-            send(sender, "messages.player-only");
-            return true;
-        }
-
         if (args.length == 0) {
+            if (!(sender instanceof Player player)) {
+                send(sender, "messages.player-only");
+                return true;
+            }
             showStats(player);
             return true;
         }
 
         if (args.length == 1 && args[0].equalsIgnoreCase("top")) {
             showTop(sender);
+            return true;
+        }
+
+        // --- /chaos clear all ---
+        if (args.length == 2 && args[0].equalsIgnoreCase("clear") && args[1].equalsIgnoreCase("all")) {
+            if (!sender.isOp()) {
+                sender.sendMessage(MINI.deserialize("<red>У вас нет прав для использования этой команды!"));
+                return true;
+            }
+
+            ConfigurationSection section = playersData.getConfigurationSection("players");
+            if (section != null) {
+                for (String uuidStr : section.getKeys(false)) {
+                    playersData.set("players." + uuidStr + ".chaos", 0);
+                    
+                    // Якщо гравець зараз онлайн, оновлюємо йому бафи
+                    Player onlinePlayer = Bukkit.getPlayer(UUID.fromString(uuidStr));
+                    if (onlinePlayer != null && onlinePlayer.isOnline()) {
+                        applyChaosBuff(onlinePlayer);
+                        onlinePlayer.sendMessage(MINI.deserialize("<red>Ваши очки хаоса были полностью аннулированы администратором!"));
+                    }
+                }
+                savePlayerData();
+            }
+
+            sender.sendMessage(MINI.deserialize("<green>Успешно! Очки хаоса сброшены до 0 для §eyet all §g(всех игроков)§синлайн и офлайн."));
+            return true;
+        }
+
+        // --- /chaos give та /chaos clear <гравець> <кількість> ---
+        if (args.length == 3 && (args[0].equalsIgnoreCase("give") || args[0].equalsIgnoreCase("clear"))) {
+            if (!sender.isOp()) {
+                sender.sendMessage(MINI.deserialize("<red>У вас нет прав для использования этой команды!"));
+                return true;
+            }
+
+            String targetName = args[1];
+            Player target = Bukkit.getPlayerExact(targetName);
+            
+            UUID targetUuid = null;
+            String foundName = targetName;
+
+            if (target != null) {
+                targetUuid = target.getUniqueId();
+                foundName = target.getName();
+            } else {
+                ConfigurationSection section = playersData.getConfigurationSection("players");
+                if (section != null) {
+                    for (String key : section.getKeys(false)) {
+                        String nameInConfig = playersData.getString("players." + key + ".name");
+                        if (nameInConfig != null && nameInConfig.equalsIgnoreCase(targetName)) {
+                            targetUuid = UUID.fromString(key);
+                            foundName = nameInConfig;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (targetUuid == null) {
+                sender.sendMessage(MINI.deserialize("<red>Игрок " + targetName + " не найден в базе данных!"));
+                return true;
+            }
+
+            int amount;
+            try {
+                amount = Integer.parseInt(args[2]);
+                if (amount < 0) {
+                    sender.sendMessage(MINI.deserialize("<red>Количество не может быть отрицательным!"));
+                    return true;
+                }
+            } catch (NumberFormatException e) {
+                sender.sendMessage(MINI.deserialize("<red>Укажите корректное число!"));
+                return true;
+            }
+
+            int currentChaos = getChaos(targetUuid);
+            int newChaos;
+
+            if (args[0].equalsIgnoreCase("give")) {
+                newChaos = currentChaos + amount;
+                setChaos(targetUuid, foundName, newChaos);
+                sender.sendMessage(MINI.deserialize("<green>Вы выдали <light_purple>" + amount + " <green>хаоса игроку <yellow>" + foundName + "<green>. Новый баланс: <light_purple>" + newChaos));
+                
+                if (target != null && target.isOnline()) {
+                    target.sendMessage(MINI.deserialize("<green>Вам было начислено <light_purple>" + amount + " <green>хаоса! Текущий баланс: <light_purple>" + newChaos));
+                }
+            } else {
+                newChaos = Math.max(0, currentChaos - amount);
+                setChaos(targetUuid, foundName, newChaos);
+                sender.sendMessage(MINI.deserialize("<red>Вы забрали <light_purple>" + amount + " <green>хаоса у игрока <yellow>" + foundName + "<green>. Новый баланс: <light_purple>" + newChaos));
+                
+                if (target != null && target.isOnline()) {
+                    target.sendMessage(MINI.deserialize("<red>У вас было списано <light_purple>" + amount + " <green>хаоса! Текущий баланс: <light_purple>" + newChaos));
+                }
+            }
             return true;
         }
 
