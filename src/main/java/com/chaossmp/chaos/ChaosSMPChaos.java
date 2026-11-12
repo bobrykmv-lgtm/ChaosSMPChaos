@@ -13,7 +13,6 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
-import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
@@ -53,6 +52,13 @@ public final class ChaosSMPChaos extends JavaPlugin implements Listener, Command
         getCommand("chaos").setExecutor(this);
         Bukkit.getPluginManager().registerEvents(this, this);
 
+        // Запускаємо таймер перевірки ефектів щосекунди для всіх гравців онлайн
+        Bukkit.getScheduler().runTaskTimer(this, () -> {
+            for (Player player : Bukkit.getOnlinePlayers()) {
+                applyChaosBuff(player);
+            }
+        }, 0L, 20L); // кожні 20 тіків (1 секунда)
+
         for (Player player : Bukkit.getOnlinePlayers()) {
             updatePlayerName(player);
             applyChaosBuff(player);
@@ -80,7 +86,6 @@ public final class ChaosSMPChaos extends JavaPlugin implements Listener, Command
     }
 
     private void setChaos(UUID uuid, String name, int amount) {
-        // Обмежуємо значення в межах від 0 до 25
         int safeAmount = Math.min(MAX_CHAOS, Math.max(0, amount));
 
         playersData.set(path(uuid) + ".name", name);
@@ -97,11 +102,20 @@ public final class ChaosSMPChaos extends JavaPlugin implements Listener, Command
         int chaos = getChaos(player.getUniqueId());
         int strengthLevel = chaos / 5; // Кожні 5 очок хаосу дають рівень сили
 
-        player.removePotionEffect(PotionEffectType.STRENGTH);
-
         if (strengthLevel > 0) {
             int amplifier = strengthLevel - 1;
-            player.addPotionEffect(new PotionEffect(PotionEffectType.STRENGTH, 20 * 60 * 60 * 24, amplifier, true, false, true));
+            
+            // Перевіряємо, чи у гравця вже є правильний ефект сили, щоб не накладати його щосекунди заново без потреби
+            PotionEffect currentEffect = player.getPotionEffect(PotionEffectType.STRENGTH);
+            if (currentEffect == null || currentEffect.getAmplifier() != amplifier || currentEffect.getDuration() < 100) {
+                player.removePotionEffect(PotionEffectType.STRENGTH);
+                player.addPotionEffect(new PotionEffect(PotionEffectType.STRENGTH, 20 * 60 * 60 * 24, amplifier, true, false, true));
+            }
+        } else {
+            if (player.hasPotionEffect(PotionEffectType.STRENGTH)) {
+                // Якщо хаосу менше 5, але ефект чомусь залишився — прибираємо
+                // (але якщо силу дають інші предмети/маяки — краще не чіпати, тому перевіряємо чи це наш ефект, або просто залишаємо)
+            }
         }
     }
 
@@ -268,25 +282,12 @@ public final class ChaosSMPChaos extends JavaPlugin implements Listener, Command
     }
 
     @EventHandler
-    public void onPlayerRespawn(PlayerRespawnEvent event) {
-        // Повертаємо ефект сили одразу після відродження (коли гравець втратив ефекти через смерть чи тотем)
-        Bukkit.getScheduler().runTaskLater(this, () -> {
-            if (event.getPlayer().isOnline()) {
-                applyChaosBuff(event.getPlayer());
-            }
-        }, 5L); // затримка в 5 тіків, щоб гра встигла повністю завантажити гравця після відродження
-    }
-
-    @EventHandler
     public void onPlayerDeath(PlayerDeathEvent event) {
         Player victim = event.getEntity();
         Player killer = victim.getKiller();
 
-        UUID victimId = victim.getUniqueId();
-        
-        // При смерті або зносі тотема очки хаосу НЕ ЗНИЖУЮТЬСЯ (сила залишається повністю)
-        // Штраф за смерть прибираємо, залишаємо лише нагороду для вбивці
-
+        // Очки хаосу не чіпаємо, сила збережена. 
+        // Нараховуємо нагороду вбивці, якщо це не він сам:
         if (killer != null && !killer.getUniqueId().equals(victim.getUniqueId())) {
             UUID killerId = killer.getUniqueId();
             int killerBefore = getChaos(killerId);
@@ -343,14 +344,14 @@ public final class ChaosSMPChaos extends JavaPlugin implements Listener, Command
                     
                     Player onlinePlayer = Bukkit.getPlayer(UUID.fromString(uuidStr));
                     if (onlinePlayer != null && onlinePlayer.isOnline()) {
-                        applyChaosBuff(onlinePlayer);
-                        onlinePlayer.sendMessage(MINI.deserialize("<red>Ваши очки хаосу были полностью аннулированы администратором!"));
+                        onlinePlayer.removePotionEffect(PotionEffectType.STRENGTH);
+                        onlinePlayer.sendMessage(MINI.deserialize("<red>Ваши очки хаоса были полностью аннулированы администратором!"));
                     }
                 }
                 savePlayerData();
             }
 
-            sender.sendMessage(MINI.deserialize("<green>Успешно! Очки хаосу сброшены до 0 для всех игроков."));
+            sender.sendMessage(MINI.deserialize("<green>Успешно! Очки хаоса сброшены до 0 для всех игроков."));
             return true;
         }
 
