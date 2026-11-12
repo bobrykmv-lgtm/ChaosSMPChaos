@@ -25,6 +25,7 @@ import java.util.UUID;
 public final class ChaosSMPChaos extends JavaPlugin implements Listener, CommandExecutor {
 
     private static final MiniMessage MINI = MiniMessage.miniMessage();
+    private static final int MAX_CHAOS = 25; // Жорсткий ліміт хаосу
 
     private File playersFile;
     private YamlConfiguration playersData;
@@ -70,7 +71,7 @@ public final class ChaosSMPChaos extends JavaPlugin implements Listener, Command
     }
 
     private int getChaos(UUID uuid) {
-        return Math.max(0, playersData.getInt(path(uuid) + ".chaos", 0));
+        return Math.min(MAX_CHAOS, Math.max(0, playersData.getInt(path(uuid) + ".chaos", 0)));
     }
 
     private int getKillReward() {
@@ -82,7 +83,8 @@ public final class ChaosSMPChaos extends JavaPlugin implements Listener, Command
     }
 
     private void setChaos(UUID uuid, String name, int amount) {
-        int safeAmount = Math.max(0, amount);
+        // Обмежуємо значення від 0 до 25 (MAX_CHAOS)
+        int safeAmount = Math.min(MAX_CHAOS, Math.max(0, amount));
 
         playersData.set(path(uuid) + ".name", name);
         playersData.set(path(uuid) + ".chaos", safeAmount);
@@ -199,7 +201,7 @@ public final class ChaosSMPChaos extends JavaPlugin implements Listener, Command
                         "<bold>ТВОЯ СТАТИСТИКА</bold>")));
         
         player.sendMessage(MINI.deserialize(prefix +
-                "<gray>Хаос: <light_purple>" + chaos));
+                "<gray>Хаос: <light_purple>" + chaos + " <dark_gray>/ <yellow>" + MAX_CHAOS));
                 
         player.sendMessage(MINI.deserialize(prefix +
                 getConfig().getString("messages.stats-rank",
@@ -273,13 +275,15 @@ public final class ChaosSMPChaos extends JavaPlugin implements Listener, Command
         Player victim = event.getEntity();
         Player killer = victim.getKiller();
 
-        int penalty = getDeathPenalty();
-        int reward = getKillReward();
-
         UUID victimId = victim.getUniqueId();
         int victimBefore = getChaos(victimId);
         
-        setChaos(victimId, victim.getName(), Math.max(0, victimBefore - penalty));
+        // Логіка «Відлуння хаосу»: при смерті втрачається 30% від поточного хаосу, 
+        // але значення ніколи не падає до 0 повністю, якщо у гравця було більше 3 одиниць (залишається фундамент).
+        int penalty = Math.max(getDeathPenalty(), (int) (victimBefore * 0.3));
+        int newVictimChaos = Math.max(victimBefore > 3 ? 1 : 0, victimBefore - penalty);
+        
+        setChaos(victimId, victim.getName(), newVictimChaos);
 
         int removed = victimBefore - getChaos(victimId);
 
@@ -296,7 +300,7 @@ public final class ChaosSMPChaos extends JavaPlugin implements Listener, Command
             UUID killerId = killer.getUniqueId();
             int killerBefore = getChaos(killerId);
             
-            setChaos(killerId, killer.getName(), killerBefore + reward);
+            setChaos(killerId, killer.getName(), killerBefore + getKillReward());
 
             int added = getChaos(killerId) - killerBefore;
 
@@ -346,7 +350,6 @@ public final class ChaosSMPChaos extends JavaPlugin implements Listener, Command
                 for (String uuidStr : section.getKeys(false)) {
                     playersData.set("players." + uuidStr + ".chaos", 0);
                     
-                    // Якщо гравець зараз онлайн, оновлюємо йому бафи
                     Player onlinePlayer = Bukkit.getPlayer(UUID.fromString(uuidStr));
                     if (onlinePlayer != null && onlinePlayer.isOnline()) {
                         applyChaosBuff(onlinePlayer);
@@ -356,7 +359,7 @@ public final class ChaosSMPChaos extends JavaPlugin implements Listener, Command
                 savePlayerData();
             }
 
-            sender.sendMessage(MINI.deserialize("<green>Успешно! Очки хаоса сброшены до 0 для §eyet all §g(всех игроков)§синлайн и офлайн."));
+            sender.sendMessage(MINI.deserialize("<green>Успешно! Очки хаоса сброшены до 0 для всех игроков (онлайн и офлайн)."));
             return true;
         }
 
@@ -411,20 +414,20 @@ public final class ChaosSMPChaos extends JavaPlugin implements Listener, Command
             int newChaos;
 
             if (args[0].equalsIgnoreCase("give")) {
-                newChaos = currentChaos + amount;
+                newChaos = Math.min(MAX_CHAOS, currentChaos + amount);
                 setChaos(targetUuid, foundName, newChaos);
-                sender.sendMessage(MINI.deserialize("<green>Вы выдали <light_purple>" + amount + " <green>хаоса игроку <yellow>" + foundName + "<green>. Новый баланс: <light_purple>" + newChaos));
+                sender.sendMessage(MINI.deserialize("<green>Вы выдали <light_purple>" + amount + " <green>хаоса игроку <yellow>" + foundName + "<green>. Новый баланс: <light_purple>" + newChaos + "<dark_gray>/" + MAX_CHAOS));
                 
                 if (target != null && target.isOnline()) {
-                    target.sendMessage(MINI.deserialize("<green>Вам было начислено <light_purple>" + amount + " <green>хаоса! Текущий баланс: <light_purple>" + newChaos));
+                    target.sendMessage(MINI.deserialize("<green>Вам было начислено <light_purple>" + amount + " <green>хаоса! Текущий баланс: <light_purple>" + newChaos + "<dark_gray>/" + MAX_CHAOS));
                 }
             } else {
                 newChaos = Math.max(0, currentChaos - amount);
                 setChaos(targetUuid, foundName, newChaos);
-                sender.sendMessage(MINI.deserialize("<red>Вы забрали <light_purple>" + amount + " <green>хаоса у игрока <yellow>" + foundName + "<green>. Новый баланс: <light_purple>" + newChaos));
+                sender.sendMessage(MINI.deserialize("<red>Вы забрали <light_purple>" + amount + " <green>хаоса у игрока <yellow>" + foundName + "<green>. Новый баланс: <light_purple>" + newChaos + "<dark_gray>/" + MAX_CHAOS));
                 
                 if (target != null && target.isOnline()) {
-                    target.sendMessage(MINI.deserialize("<red>У вас было списано <light_purple>" + amount + " <green>хаоса! Текущий баланс: <light_purple>" + newChaos));
+                    target.sendMessage(MINI.deserialize("<red>У вас было списано <light_purple>" + amount + " <green>хаоса! Текущий баланс: <light_purple>" + newChaos + "<dark_gray>/" + MAX_CHAOS));
                 }
             }
             return true;
