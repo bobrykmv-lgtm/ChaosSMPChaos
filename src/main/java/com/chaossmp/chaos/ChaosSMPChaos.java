@@ -13,6 +13,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
@@ -25,7 +26,7 @@ import java.util.UUID;
 public final class ChaosSMPChaos extends JavaPlugin implements Listener, CommandExecutor {
 
     private static final MiniMessage MINI = MiniMessage.miniMessage();
-    private static final int MAX_CHAOS = 25; // Жорсткий ліміт хаосу
+    private static final int MAX_CHAOS = 25; // Суворий ліміт хаосу
 
     private File playersFile;
     private YamlConfiguration playersData;
@@ -78,12 +79,8 @@ public final class ChaosSMPChaos extends JavaPlugin implements Listener, Command
         return Math.max(0, getConfig().getInt("settings.kill-reward", 1));
     }
 
-    private int getDeathPenalty() {
-        return Math.max(0, getConfig().getInt("settings.death-penalty", 1));
-    }
-
     private void setChaos(UUID uuid, String name, int amount) {
-        // Обмежуємо значення від 0 до 25 (MAX_CHAOS)
+        // Обмежуємо значення в межах від 0 до 25
         int safeAmount = Math.min(MAX_CHAOS, Math.max(0, amount));
 
         playersData.set(path(uuid) + ".name", name);
@@ -98,7 +95,7 @@ public final class ChaosSMPChaos extends JavaPlugin implements Listener, Command
 
     private void applyChaosBuff(Player player) {
         int chaos = getChaos(player.getUniqueId());
-        int strengthLevel = chaos / 5;
+        int strengthLevel = chaos / 5; // Кожні 5 очок хаосу дають рівень сили
 
         player.removePotionEffect(PotionEffectType.STRENGTH);
 
@@ -271,30 +268,24 @@ public final class ChaosSMPChaos extends JavaPlugin implements Listener, Command
     }
 
     @EventHandler
+    public void onPlayerRespawn(PlayerRespawnEvent event) {
+        // Повертаємо ефект сили одразу після відродження (коли гравець втратив ефекти через смерть чи тотем)
+        Bukkit.getScheduler().runTaskLater(this, () -> {
+            if (event.getPlayer().isOnline()) {
+                applyChaosBuff(event.getPlayer());
+            }
+        }, 5L); // затримка в 5 тіків, щоб гра встигла повністю завантажити гравця після відродження
+    }
+
+    @EventHandler
     public void onPlayerDeath(PlayerDeathEvent event) {
         Player victim = event.getEntity();
         Player killer = victim.getKiller();
 
         UUID victimId = victim.getUniqueId();
-        int victimBefore = getChaos(victimId);
         
-        // Логіка «Відлуння хаосу»: при смерті втрачається 30% від поточного хаосу, 
-        // але значення ніколи не падає до 0 повністю, якщо у гравця було більше 3 одиниць (залишається фундамент).
-        int penalty = Math.max(getDeathPenalty(), (int) (victimBefore * 0.3));
-        int newVictimChaos = Math.max(victimBefore > 3 ? 1 : 0, victimBefore - penalty);
-        
-        setChaos(victimId, victim.getName(), newVictimChaos);
-
-        int removed = victimBefore - getChaos(victimId);
-
-        if (removed > 0) {
-            sendFormatted(
-                    victim,
-                    "messages.death-message",
-                    killer != null ? killer.getName() : "окружающая среда",
-                    removed
-            );
-        }
+        // При смерті або зносі тотема очки хаосу НЕ ЗНИЖУЮТЬСЯ (сила залишається повністю)
+        // Штраф за смерть прибираємо, залишаємо лише нагороду для вбивці
 
         if (killer != null && !killer.getUniqueId().equals(victim.getUniqueId())) {
             UUID killerId = killer.getUniqueId();
@@ -353,17 +344,17 @@ public final class ChaosSMPChaos extends JavaPlugin implements Listener, Command
                     Player onlinePlayer = Bukkit.getPlayer(UUID.fromString(uuidStr));
                     if (onlinePlayer != null && onlinePlayer.isOnline()) {
                         applyChaosBuff(onlinePlayer);
-                        onlinePlayer.sendMessage(MINI.deserialize("<red>Ваши очки хаоса были полностью аннулированы администратором!"));
+                        onlinePlayer.sendMessage(MINI.deserialize("<red>Ваши очки хаосу были полностью аннулированы администратором!"));
                     }
                 }
                 savePlayerData();
             }
 
-            sender.sendMessage(MINI.deserialize("<green>Успешно! Очки хаоса сброшены до 0 для всех игроков (онлайн и офлайн)."));
+            sender.sendMessage(MINI.deserialize("<green>Успешно! Очки хаосу сброшены до 0 для всех игроков."));
             return true;
         }
 
-        // --- /chaos give та /chaos clear <гравець> <кількість> ---
+        // --- /chaos give / clear <гравець> <кількість> ---
         if (args.length == 3 && (args[0].equalsIgnoreCase("give") || args[0].equalsIgnoreCase("clear"))) {
             if (!sender.isOp()) {
                 sender.sendMessage(MINI.deserialize("<red>У вас нет прав для использования этой команды!"));
